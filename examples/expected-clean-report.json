@@ -1,0 +1,11 @@
+{
+  "database_integrity": ["ok"],
+  "foreign_key_violations": 0,
+  "active_collections": 0,
+  "active_items": 0,
+  "attachment_records": 0,
+  "orphan_collection_memberships": 0,
+  "unsafe_unsynced_collection_keys": [],
+  "unsafe_unsynced_item_keys": []
+}
+
