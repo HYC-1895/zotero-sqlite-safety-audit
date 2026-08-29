@@ -1,6 +1,29 @@
 # SQLite 离线审计运行手册
 
-本项目用于判断旧式 SQLite 自动化是否可能留下结构或同步风险。它是**只读工具**，不能替代 Zotero 的同步和恢复功能。
+本项目用于本地 Zotero 整理：运行中的 Zotero 通过本地 Connector 导入 RIS/BibTeX；关闭 Zotero 后通过 SQLite 审计建立结构基线；对明确批次使用离线维护操作契约。
+
+## 0. 本地 AI 的启动流程
+
+本机 AI 无需网络或 Zotero API Key。它先让用户在 Zotero 左侧栏选中目标收藏夹，再运行：
+
+```powershell
+python zotero_local_connector.py status
+python zotero_local_connector.py selected-target
+```
+
+第二条命令的资料库和收藏夹就是下一次导入的目的地。AI 应复述该目标，用户确认后再开始预演。
+
+## 0.1 本地导入 RIS/BibTeX
+
+```powershell
+# 预演：不会写入
+python zotero_local_connector.py import --format ris --file .\examples\example.ris
+
+# 确认目标与文件后导入
+python zotero_local_connector.py import --format ris --file .\examples\example.ris --apply
+```
+
+Connector 会将题录导入当前在 Zotero 界面选中的资料库或收藏夹。导入完成后，AI 应在界面中抽查题名、作者、年份、DOI/URL 和父条目关系；PDF 由用户在已授权来源获取并作为子附件附加。
 
 ## 1. 示例机器目录
 
