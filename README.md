@@ -1,8 +1,10 @@
 # Zotero SQLite Safety Audit
 
-一个只读的 Zotero SQLite 健康检查工具，以及将旧式“直接改数据库”工作流迁移到安全方案的说明。
+一个可直接运行的 Zotero SQLite **只读健康检查工具**，配套记录一套真实可用的离线整理流程：建立收藏夹层级、补全题录、归类条目和登记已有 PDF 附件。
 
-> 重要：这个项目**不会**修改 `zotero.sqlite`、同步缓存或附件目录。Zotero 官方明确不建议外部程序直接写数据库；本项目保留旧路线的诊断价值，而不复刻危险的写入行为。
+> 这不是把旧路线简单判定为“不能用”的项目。离线 SQLite 整理在固定 Zotero 版本、完全退出应用、先备份、范围明确且由维护者掌握数据模型的前提下，确实能够高效完成批量工作。本项目如实保留这条路线的工程步骤、优点和验证方法；同时也说明它为何不适合作为跨版本、跨机器、无人值守或直接面对同步服务的通用写入方案。
+
+本仓库的可执行代码保持**只读**：它帮助你先确认离线库是否处于适合处理的状态。直接写入流程只作为受控维护方法文档化，不提供可对任意资料库直接执行的写入器。
 
 ## 它检查什么
 
@@ -23,6 +25,18 @@ python zotero_sqlite_audit.py --database 'X:\path\to\zotero.sqlite'
 
 4. 保存 JSON 输出；只有在确认问题范围、拥有完整备份并遵循官方恢复流程时，才考虑下一步修复。
 
+### 下载后最快可运行的检查
+
+本项目仅依赖 Python 标准库。下载或克隆后，在 PowerShell 中运行：
+
+```powershell
+cd <项目下载目录>\zotero-sqlite-safety-audit
+python --version
+python .\zotero_sqlite_audit.py --database 'D:\Zotero-article\zotero.sqlite'
+```
+
+上例的目录是本机示例。换电脑时，先在 Zotero 中打开“设置 → 高级 → 显示数据目录”，然后把输出的真实 `zotero.sqlite` 路径填入命令。工具以 SQLite 只读模式打开数据库，不会生成、修改或删除文件。
+
 ## 不做什么
 
 - 不生成或替换 Zotero 内部对象键；
@@ -30,9 +44,30 @@ python zotero_sqlite_audit.py --database 'X:\path\to\zotero.sqlite'
 - 不直接移动本地附件目录；
 - 不在 Zotero 正在运行时绕过数据库锁。
 
-## 从旧式工具迁移
+## 既有离线 SQLite 工作流：它做对了什么
 
-如果旧脚本曾通过 SQLite 创建收藏夹或归类条目：停止运行该脚本，先执行本项目的审计与完整备份，然后把后续整理改为 Zotero Web API。服务端会生成合法键，并处理同步版本与冲突。
+一套成熟的旧式整理脚本通常不是“只插入一行 SQL”。它会先读取一份计划（例如 JSON），然后在 Zotero 完全退出时完成以下工作：
+
+1. 为一个明确的批次建立顶层收藏夹和日期/主题子收藏夹；已存在时跳过，保证重复执行不会重复建树。
+2. 通过 DOI、Crossref 或人工核验补全题名、作者、期刊、卷期页和摘要等题录字段。
+3. 只把**父文献条目**加入对应收藏夹，避免把 PDF 子附件当作独立论文归类。
+4. 检查重复记录，先输出保留/删除计划，再在明确范围内处理本批次未同步的重复项。
+5. 对已经合法下载的 PDF 计算校验值、建立附件记录并放入 Zotero 管理的存储结构。
+6. 提交前后运行完整性检查，并把每一次输入、输出和备份保留下来。
+
+这些设计——计划文件、dry-run、幂等性、范围收窄、备份和回读——都是正确且值得继续使用的。更详细的受控流程见 [legacy/controlled-offline-direct-write.md](legacy/controlled-offline-direct-write.md)。
+
+## 这条路线的适用边界
+
+| 场景 | 离线 SQLite 流程 | Web API 流程 |
+|---|---|---|
+| 同一台已验证版本的电脑、一次性处理明确批次 | 可行，但必须完整备份与离线验证 | 可行，需网络与 API Key |
+| 建立/归类收藏夹、补全题录 | 可行，但需自行掌握内部关系 | 推荐；服务端生成 key、处理版本 |
+| 上传或同步 PDF 附件 | 本机可登记存储附件，但不等于云端上传 | 需官方多阶段上传协议 |
+| 跨设备、长期自动化、多人协作 | 不适合做唯一写入通道 | 推荐 |
+| Zotero 正在运行、版本不明或同步状态不明 | 不应使用 | 等正常同步后再用 |
+
+真正的风险不是“SQLite 天生不可用”，而是外部工具必须与 Zotero 的内部对象键、版本、删除状态、附件与同步缓存保持一致；这些内部实现可能随版本变化，且服务端会额外校验。若无法验证这些条件，就不要把直接写入当作默认方案。
 
 ## 给智能体的离线审计顺序
 
@@ -43,7 +78,7 @@ python zotero_sqlite_audit.py --database 'X:\path\to\zotero.sqlite'
 5. 若只发现异常未同步对象 key，也不要按字符批量替换全库；先确认对象来源、同步状态和云端状态。
 6. 日后所有新增或整理操作迁移到 Web API；这个仓库不提供直接 SQLite 写入命令。
 
-完整的低风险复现手册见 [docs/agent-runbook.md](docs/agent-runbook.md)。旧路线的实现逻辑与失败原因归档在 [legacy/unsafe-workflow-archive.md](legacy/unsafe-workflow-archive.md)，它不可执行，不能作为生产方案。
+完整的低风险审计手册见 [docs/agent-runbook.md](docs/agent-runbook.md)。历史实现与此次同步问题的边界说明见 [legacy/unsafe-workflow-archive.md](legacy/unsafe-workflow-archive.md)；受控离线操作的完整检查表见 [legacy/controlled-offline-direct-write.md](legacy/controlled-offline-direct-write.md)。
 
 ## 官方资料
 
